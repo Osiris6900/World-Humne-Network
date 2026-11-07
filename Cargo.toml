@@ -1,3 +1,7 @@
+[workspace]
+members = ["crates/whn-net"]
+resolver = "2"
+
 [package]
 name = "whn-core"
 version = "0.1.0"

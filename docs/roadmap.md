@@ -16,6 +16,13 @@ network transport or a multi-host demo.
 Publish/resolve capability cards on a Kademlia DHT under the `/whn/0.1/` key layout, with expiry and republish. Self-certifying record validation.
 **Done when:** a card published by one host is retrievable by another host after churn (nodes leaving/joining).
 
+Implementation: `whn-net` provides TCP/Noise/Yamux nodes, explicit bootstrap,
+validated capability-card DHT publish/resolve, expiry and automatic republishing.
+Local loopback integration tests include a publisher leaving and a newcomer
+resolving from a replica. `scripts/dht_smoke.py` repeats that flow across three
+local processes. **The independent-host acceptance gate is still pending**;
+these local runs do not close Phase 2. See [discovery.md](discovery.md).
+
 ## Phase 3 — Gossip topics + local matcher
 Need-topics on GossipSub, subscription model, and the first end-to-end moment: a need card published on one host surfaces as a match candidate on another host's local matcher.
 **Done when:** the first recorded match demo on two independent machines.
