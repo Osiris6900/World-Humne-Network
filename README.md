@@ -29,14 +29,16 @@ The vectors are independently checked in Python. The `whn-net` crate adds
 TCP/Noise/Yamux transport and validated capability-card publish/resolve on
 Kademlia, with expiry and automatic republishing. Local TCP churn tests and a
 three-process CLI smoke test exercise this implementation; independent-host
-validation is still pending. Gossip, matching, ranking and offline sync are not
-implemented yet.
+validation is still pending. Scoped GossipSub need/capability announcements and
+a deterministic local matcher now provide candidate discovery. Ranking with
+attestations, offline sync and direct application negotiation remain future work.
 
 - [docs/vision.md](docs/vision.md) — why this exists
 - [docs/protocol.md](docs/protocol.md) — draft protocol specification (v0.1)
 - [docs/roadmap.md](docs/roadmap.md) — build phases and release gates
 - [test-vectors/README.md](test-vectors/README.md) — exact JSON bytes and cross-language verification
 - [docs/discovery.md](docs/discovery.md) — run nodes, publish/resolve cards, and validate across hosts
+- [docs/matching.md](docs/matching.md) — scoped gossip, local candidates and the two-process demo
 
 ## Build and verify
 
@@ -49,6 +51,7 @@ python3 -m venv .venv
 .venv/bin/python scripts/verify_vectors.py
 cargo build --locked -p whn-net
 python3 scripts/dht_smoke.py
+python3 scripts/matching_smoke.py
 ```
 
 Use `card.verify_at(unix_seconds)` when accepting a live card; `card.verify()`

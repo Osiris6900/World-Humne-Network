@@ -1,6 +1,6 @@
 # World-Humne-Network Protocol — Draft v0.1
 
-Status: **draft; Phase 1 Rust core plus Phase 2 TCP/Noise capability discovery implemented.** Networking is locally tested; independent-host validation is pending. Gossip, matching and later layers remain unimplemented. Language-neutral; clients must agree on the wire profiles described here.
+Status: **draft; Rust cards, TCP/Noise discovery, scoped GossipSub and local candidate matching implemented.** Networking and matching are locally tested; independent-host validation is pending/deferred. Attestation ranking, offline sync and application negotiation remain unimplemented. Language-neutral; clients must agree on the wire profiles described here.
 
 ## 0. Layer overview
 
@@ -158,6 +158,30 @@ whn/0.1/rank/<category>/<region>     ranking summaries (§6)
 - Battery-constrained nodes MAY subscribe to few topics and lean on DHT pulls; relay-capable nodes SHOULD carry more.
 - Polite mode: reduced fanout, longer heartbeat on mobile profiles.
 
+The reference node implements `need` and `cap` topics, explicit subscribe and
+unsubscribe, and a bounded cache of validated live cards. `rank` topics remain
+future work. Optional/absent `region_hint` maps to the literal topic region
+`global`; otherwise the topic region must exactly equal the signed hint.
+Topic regions use 1–32 uppercase ASCII letters/digits/hyphens, starting with a
+letter, or `global`. Categories are the ten canonical names above. The category
+is caller-selected routing metadata, not a field signed into the card body or
+a verified classification of free tags.
+
+GossipSub uses signed messages, strict protocol validation, and application
+validation before forwarding. Card signatures, ids, schema, expiry, topic kind
+and region binding must pass before caching or accepting a message. Payloads
+are full v0 JSON cards, limited to 16 KiB with at most 32 tags of 128 UTF-8 bytes
+each. A signed transport envelope alone does not make an invalid card acceptable.
+Republishing someone else's valid signed card is allowed; the relay does not
+become the card's author.
+
+The standard profile has a 6-peer target mesh, 1-second heartbeat and at most 16
+local topics; polite mode uses a 3-peer target, 3-second heartbeat and 4 local
+topics. These are traffic presets, not measured Android battery guarantees.
+The local matching cache is capped at 256 cards (including local registrations),
+deduplicated by category/id and pruned on expiry. Unsubscribing clears the
+corresponding remote cards, retaining explicitly registered local cards.
+
 ## 5. Anti-spam
 
 - **Proof-of-work per card:** `blake3(card_body || pow_nonce)` must have `d` leading zero bits. `d` is calibrated so a mid-range phone solves in ~2–5 s and adapts with observed network abuse.
@@ -189,6 +213,15 @@ Purely local:
 2. Matcher scores candidates: tag overlap, region proximity (coarse), counterparty reputation, freshness, capacity hints.
 3. On a candidate match, the node opens a direct E2EE session to the counterparty (Noise handshake over the P2P transport). Negotiation content never touches the DHT or gossip.
 4. Outcome → attestation (fulfilled / failed) feeds back into ranking.
+
+The Phase 3 reference matcher currently implements candidate suggestions only:
+exact, case-sensitive shared tags; same-region/country-prefix proximity; and
+capability freshness. Tags are deduplicated; no-overlap and self-authored pairs
+are excluded. Reputation is a neutral multiplier of 1.0 until Phase 4. Capacity
+notes are displayed as signed text, not interpreted numerically. Synonyms and
+semantic mappings (such as `drinking-water` versus `water-purifier`) require a
+shared tag or a future taxonomy layer. Application-level negotiation sessions
+and outcome attestations are not implemented. See [matching.md](matching.md).
 
 ## 8. Sync & offline
 

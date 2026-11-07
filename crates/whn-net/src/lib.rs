@@ -1,13 +1,23 @@
 //! Authenticated TCP transport and validated capability-card discovery.
 
+pub mod gossip;
 mod node;
 pub mod record;
 
+pub use gossip::{Announcement, GossipProfile, GossipSnapshot, TopicKind, TopicSpec};
 pub use libp2p::{Multiaddr, PeerId};
 pub use node::{Node, NodeConfig, NodeStats};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {
+    #[error("invalid topic category, kind, namespace or region")]
+    InvalidTopic,
+    #[error("invalid announcement: {0}")]
+    InvalidAnnouncement(&'static str),
+    #[error("local card cache is full")]
+    CacheFull,
+    #[error("subscription limit reached for this profile")]
+    SubscriptionLimit,
     #[error(transparent)]
     Card(#[from] whn_core::error::WhnError),
     #[error(transparent)]

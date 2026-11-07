@@ -27,6 +27,13 @@ these local runs do not close Phase 2. See [discovery.md](discovery.md).
 Need-topics on GossipSub, subscription model, and the first end-to-end moment: a need card published on one host surfaces as a match candidate on another host's local matcher.
 **Done when:** the first recorded match demo on two independent machines.
 
+Implementation: scoped signed GossipSub announcements, explicit subscriptions,
+a polite profile and deterministic local candidate scoring are present.
+`scripts/matching_smoke.py` demonstrates need/capability exchange and matching
+across two local processes. Independent-machine demos remain pending and are
+deferred for now; these local results do not close the acceptance gate.
+See [matching.md](matching.md).
+
 ## Phase 4 — Attestation & ranking
 Attestation objects, reputation weighting, time-decay scoring, ranking-summary gossip. Fraudulent-claim path.
 **Done when:** in a multi-host testnet, an attested need outranks an unattested one on all honest nodes, and a fraud-flagged card sinks.
