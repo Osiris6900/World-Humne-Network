@@ -25,23 +25,30 @@ Most scarcity in the world is not a supply problem — it is a **matching proble
 
 Phase 1 reference core is implemented in Rust: Capability/Need cards,
 Ed25519 signing, BLAKE3 ids, schema validation and published v0 JSON vectors.
-The vectors are independently checked in Python. DHT discovery, P2P transport,
-gossip, matching, ranking and offline sync are not implemented yet.
+The vectors are independently checked in Python. The `whn-net` crate adds
+TCP/Noise/Yamux transport and validated capability-card publish/resolve on
+Kademlia, with expiry and automatic republishing. Local TCP churn tests and a
+three-process CLI smoke test exercise this implementation; independent-host
+validation is still pending. Gossip, matching, ranking and offline sync are not
+implemented yet.
 
 - [docs/vision.md](docs/vision.md) — why this exists
 - [docs/protocol.md](docs/protocol.md) — draft protocol specification (v0.1)
 - [docs/roadmap.md](docs/roadmap.md) — build phases and release gates
 - [test-vectors/README.md](test-vectors/README.md) — exact JSON bytes and cross-language verification
+- [docs/discovery.md](docs/discovery.md) — run nodes, publish/resolve cards, and validate across hosts
 
 ## Build and verify
 
 ```sh
-cargo test --locked --all-targets
+cargo test --locked --workspace --all-targets
 cargo fmt --all -- --check
-cargo clippy --locked --all-targets -- -D warnings
+cargo clippy --locked --workspace --all-targets -- -D warnings
 python3 -m venv .venv
 .venv/bin/python -m pip install -r scripts/requirements-interop.txt
 .venv/bin/python scripts/verify_vectors.py
+cargo build --locked -p whn-net
+python3 scripts/dht_smoke.py
 ```
 
 Use `card.verify_at(unix_seconds)` when accepting a live card; `card.verify()`

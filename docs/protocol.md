@@ -1,6 +1,6 @@
 # World-Humne-Network Protocol — Draft v0.1
 
-Status: **draft; Phase 1 Rust core implemented with v0 JSON interoperability vectors.** Networking layers remain unimplemented. Language-neutral. Any client (Rust, Go, TypeScript, …) that satisfies this spec should be able to join the same network once those layers are built.
+Status: **draft; Phase 1 Rust core plus Phase 2 TCP/Noise capability discovery implemented.** Networking is locally tested; independent-host validation is pending. Gossip, matching and later layers remain unimplemented. Language-neutral; clients must agree on the wire profiles described here.
 
 ## 0. Layer overview
 
@@ -122,8 +122,29 @@ Kademlia DHT keys:
 ```
 
 - Nodes republish live cards before expiry; expired entries are dropped by stores.
-- Lookup by tag returns a set; the local matcher filters and ranks.
+- Kademlia performs exact key lookups, not prefix queries. The Phase 2 API
+  resolves a capability using both its signed offer tag and known card id.
+  Discovery of candidate ids by tag is future work for gossip/indexing; a
+  tag-only query cannot enumerate these keys by itself.
 - Records are self-certifying (signature + pubkey inside), so DHT stores cannot forge content.
+
+The Phase 2 reference implementation currently supports only `/cap/` records,
+using the v0 JSON profile. Tags are percent-encoded UTF-8 path segments
+(uppercase hex escapes; ASCII letters/digits and `-._~` remain unescaped).
+The key must exactly match a signed offer and card id. Stores and query results
+both validate signatures, schema and signed expiry before accepting data.
+Network limits are 16 KiB per card, 32 offers, 128 UTF-8 bytes per tag and
+1024 records per in-memory store. Expiry must fit the platform's monotonic clock.
+Unknown namespaces and unsigned provider records are not stored.
+
+Transport is TCP + authenticated Noise + Yamux, using the core Ed25519 identity
+to derive the libp2p PeerID. Kademlia negotiates `/whn/kad/0.1.0` and Identify
+uses `/whn/id/0.1.0`. Initial peers are supplied explicitly. DHT replicas default
+to a one-hour TTL, replication every minute and publication every five minutes;
+signed card expiry always wins. Initial publish requires a remote acknowledgement
+for each distinct offer, with a target replication factor of three. Automatic
+republish uses that full target; sparse meshes may report partial-quorum failure
+even when some replicas acknowledge. See [discovery.md](discovery.md).
 
 ## 4. Messaging — GossipSub topics
 
