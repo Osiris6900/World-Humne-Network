@@ -8,7 +8,7 @@ repository = "https://github.com/Osiris6900/World-Humne-Network"
 
 [dependencies]
 whn-core = { path = "../.." }
-libp2p = { version = "0.56", default-features = false, features = ["tokio", "tcp", "noise", "yamux", "kad", "identify", "macros"] }
+libp2p = { version = "0.56", default-features = false, features = ["tokio", "tcp", "noise", "yamux", "kad", "identify", "gossipsub", "macros"] }
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "time", "io-std", "io-util"] }
 futures = "0.3"
 serde = { version = "1", features = ["derive"] }

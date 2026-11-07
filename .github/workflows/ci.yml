@@ -30,3 +30,4 @@ jobs:
       - run: python -m pip install -r scripts/requirements-interop.txt
       - run: python scripts/verify_vectors.py
       - run: python scripts/dht_smoke.py
+      - run: python scripts/matching_smoke.py
