@@ -1,5 +1,5 @@
 use base64::{engine::general_purpose::URL_SAFE_NO_PAD, Engine};
-use ed25519_dalek::{Signature, Signer, SigningKey, Verifier, VerifyingKey};
+use ed25519_dalek::{Signature, Signer, SigningKey, VerifyingKey};
 use rand::rngs::OsRng;
 
 use crate::error::WhnError;
@@ -52,10 +52,9 @@ pub fn verify_b64(pubkey_b64: &str, msg: &[u8], sig_b64: &str) -> Result<(), Whn
     let sig_raw = URL_SAFE_NO_PAD
         .decode(sig_b64)
         .map_err(|_| WhnError::InvalidEncoding)?;
-    let sig_arr: [u8; 64] = sig_raw
-        .try_into()
-        .map_err(|_| WhnError::InvalidEncoding)?;
+    let sig_arr: [u8; 64] = sig_raw.try_into().map_err(|_| WhnError::InvalidEncoding)?;
     let sig = Signature::from_bytes(&sig_arr);
 
-    vk.verify(msg, &sig).map_err(|_| WhnError::InvalidSignature)
+    vk.verify_strict(msg, &sig)
+        .map_err(|_| WhnError::InvalidSignature)
 }

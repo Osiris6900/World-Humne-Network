@@ -14,6 +14,7 @@ use crate::SPEC_VERSION;
 // ---------- Capability Card ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct CapabilityCard {
     pub spec: String,
     #[serde(rename = "type")]
@@ -94,43 +95,11 @@ impl CapabilityDraft {
     }
 
     pub fn sign(self, identity: &Identity) -> Result<CapabilityCard, WhnError> {
-        let pubkey = identity.public_key_b64();
-        let id_payload = CapabilityIdPayload {
-            spec: SPEC_VERSION,
-            kind: "capability",
-            pubkey: &pubkey,
-            offers: &self.offers,
-            region_hint: &self.region_hint,
-            capacity_note: &self.capacity_note,
-            contact_hint: &self.contact_hint,
-            created_at: self.created_at,
-            expires_at: self.expires_at,
-            pow_nonce: &self.pow_nonce,
-        };
-        let id = blake3::hash(&serde_json::to_vec(&id_payload)?)
-            .to_hex()
-            .to_string();
-
-        let sign_payload = CapabilitySignPayload {
-            spec: SPEC_VERSION,
-            kind: "capability",
-            id: &id,
-            pubkey: &pubkey,
-            offers: &self.offers,
-            region_hint: &self.region_hint,
-            capacity_note: &self.capacity_note,
-            contact_hint: &self.contact_hint,
-            created_at: self.created_at,
-            expires_at: self.expires_at,
-            pow_nonce: &self.pow_nonce,
-        };
-        let signature = identity.sign(&serde_json::to_vec(&sign_payload)?);
-
-        Ok(CapabilityCard {
+        let mut card = CapabilityCard {
             spec: SPEC_VERSION.into(),
             kind: "capability".into(),
-            id,
-            pubkey,
+            id: String::new(),
+            pubkey: identity.public_key_b64(),
             offers: self.offers,
             region_hint: self.region_hint,
             capacity_note: self.capacity_note,
@@ -138,14 +107,33 @@ impl CapabilityDraft {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: self.pow_nonce,
-            signature,
-        })
+            signature: String::new(),
+        };
+        card.validate()?;
+        card.id = blake3::hash(&card.id_payload_bytes()?).to_hex().to_string();
+        card.signature = identity.sign(&card.signing_payload_bytes()?);
+        Ok(card)
     }
 }
 
 impl CapabilityCard {
-    pub fn verify(&self) -> Result<(), WhnError> {
-        let id_payload = CapabilityIdPayload {
+    fn validate(&self) -> Result<(), WhnError> {
+        validate_header(&self.spec, &self.kind, "capability")?;
+        validate_fields(
+            "offers",
+            &self.offers,
+            "capacity_note",
+            self.capacity_note.as_deref(),
+            self.created_at,
+            self.expires_at,
+        )?;
+        Ok(())
+    }
+
+    /// Exact v0 JSON bytes hashed for the id; excludes `id` and `signature`.
+    /// This serialization helper does not validate the card.
+    pub fn id_payload_bytes(&self) -> Result<Vec<u8>, WhnError> {
+        Ok(serde_json::to_vec(&CapabilityIdPayload {
             spec: &self.spec,
             kind: &self.kind,
             pubkey: &self.pubkey,
@@ -156,15 +144,13 @@ impl CapabilityCard {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: &self.pow_nonce,
-        };
-        let id = blake3::hash(&serde_json::to_vec(&id_payload)?)
-            .to_hex()
-            .to_string();
-        if id != self.id {
-            return Err(WhnError::IdMismatch);
-        }
+        })?)
+    }
 
-        let sign_payload = CapabilitySignPayload {
+    /// Exact v0 JSON bytes signed by the author; excludes only `signature`.
+    /// This serialization helper does not validate the card.
+    pub fn signing_payload_bytes(&self) -> Result<Vec<u8>, WhnError> {
+        Ok(serde_json::to_vec(&CapabilitySignPayload {
             spec: &self.spec,
             kind: &self.kind,
             id: &self.id,
@@ -176,12 +162,32 @@ impl CapabilityCard {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: &self.pow_nonce,
-        };
+        })?)
+    }
+
+    /// Verify schema, id and signature independently of the current time.
+    /// Use `verify_at` when accepting a live card from the network.
+    pub fn verify(&self) -> Result<(), WhnError> {
+        self.validate()?;
+        let id = blake3::hash(&self.id_payload_bytes()?).to_hex().to_string();
+        if id != self.id {
+            return Err(WhnError::IdMismatch);
+        }
         verify_b64(
             &self.pubkey,
-            &serde_json::to_vec(&sign_payload)?,
+            &self.signing_payload_bytes()?,
             &self.signature,
         )
+    }
+
+    /// Verify a live card, rejecting it at or after its expiry timestamp.
+    /// `now` is caller-supplied Unix time in seconds.
+    pub fn verify_at(&self, now: u64) -> Result<(), WhnError> {
+        self.verify()?;
+        if self.is_expired(now) {
+            return Err(WhnError::Expired);
+        }
+        Ok(())
     }
 
     pub fn is_expired(&self, now: u64) -> bool {
@@ -192,6 +198,7 @@ impl CapabilityCard {
 // ---------- Need Card ----------
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
+#[serde(deny_unknown_fields)]
 pub struct NeedCard {
     pub spec: String,
     #[serde(rename = "type")]
@@ -269,46 +276,11 @@ impl NeedDraft {
     }
 
     pub fn sign(self, identity: &Identity) -> Result<NeedCard, WhnError> {
-        if !(1..=5).contains(&self.urgency) {
-            return Err(WhnError::BadUrgency(self.urgency));
-        }
-        let pubkey = identity.public_key_b64();
-        let id_payload = NeedIdPayload {
-            spec: SPEC_VERSION,
-            kind: "need",
-            pubkey: &pubkey,
-            needs: &self.needs,
-            region_hint: &self.region_hint,
-            urgency: self.urgency,
-            note: &self.note,
-            created_at: self.created_at,
-            expires_at: self.expires_at,
-            pow_nonce: &self.pow_nonce,
-        };
-        let id = blake3::hash(&serde_json::to_vec(&id_payload)?)
-            .to_hex()
-            .to_string();
-
-        let sign_payload = NeedSignPayload {
-            spec: SPEC_VERSION,
-            kind: "need",
-            id: &id,
-            pubkey: &pubkey,
-            needs: &self.needs,
-            region_hint: &self.region_hint,
-            urgency: self.urgency,
-            note: &self.note,
-            created_at: self.created_at,
-            expires_at: self.expires_at,
-            pow_nonce: &self.pow_nonce,
-        };
-        let signature = identity.sign(&serde_json::to_vec(&sign_payload)?);
-
-        Ok(NeedCard {
+        let mut card = NeedCard {
             spec: SPEC_VERSION.into(),
             kind: "need".into(),
-            id,
-            pubkey,
+            id: String::new(),
+            pubkey: identity.public_key_b64(),
             needs: self.needs,
             region_hint: self.region_hint,
             urgency: self.urgency,
@@ -316,14 +288,36 @@ impl NeedDraft {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: self.pow_nonce,
-            signature,
-        })
+            signature: String::new(),
+        };
+        card.validate()?;
+        card.id = blake3::hash(&card.id_payload_bytes()?).to_hex().to_string();
+        card.signature = identity.sign(&card.signing_payload_bytes()?);
+        Ok(card)
     }
 }
 
 impl NeedCard {
-    pub fn verify(&self) -> Result<(), WhnError> {
-        let id_payload = NeedIdPayload {
+    fn validate(&self) -> Result<(), WhnError> {
+        validate_header(&self.spec, &self.kind, "need")?;
+        validate_fields(
+            "needs",
+            &self.needs,
+            "note",
+            self.note.as_deref(),
+            self.created_at,
+            self.expires_at,
+        )?;
+        if !(1..=5).contains(&self.urgency) {
+            return Err(WhnError::BadUrgency(self.urgency));
+        }
+        Ok(())
+    }
+
+    /// Exact v0 JSON bytes hashed for the id; excludes `id` and `signature`.
+    /// This serialization helper does not validate the card.
+    pub fn id_payload_bytes(&self) -> Result<Vec<u8>, WhnError> {
+        Ok(serde_json::to_vec(&NeedIdPayload {
             spec: &self.spec,
             kind: &self.kind,
             pubkey: &self.pubkey,
@@ -334,15 +328,13 @@ impl NeedCard {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: &self.pow_nonce,
-        };
-        let id = blake3::hash(&serde_json::to_vec(&id_payload)?)
-            .to_hex()
-            .to_string();
-        if id != self.id {
-            return Err(WhnError::IdMismatch);
-        }
+        })?)
+    }
 
-        let sign_payload = NeedSignPayload {
+    /// Exact v0 JSON bytes signed by the author; excludes only `signature`.
+    /// This serialization helper does not validate the card.
+    pub fn signing_payload_bytes(&self) -> Result<Vec<u8>, WhnError> {
+        Ok(serde_json::to_vec(&NeedSignPayload {
             spec: &self.spec,
             kind: &self.kind,
             id: &self.id,
@@ -354,15 +346,68 @@ impl NeedCard {
             created_at: self.created_at,
             expires_at: self.expires_at,
             pow_nonce: &self.pow_nonce,
-        };
+        })?)
+    }
+
+    /// Verify schema, id and signature independently of the current time.
+    /// Use `verify_at` when accepting a live card from the network.
+    pub fn verify(&self) -> Result<(), WhnError> {
+        self.validate()?;
+        let id = blake3::hash(&self.id_payload_bytes()?).to_hex().to_string();
+        if id != self.id {
+            return Err(WhnError::IdMismatch);
+        }
         verify_b64(
             &self.pubkey,
-            &serde_json::to_vec(&sign_payload)?,
+            &self.signing_payload_bytes()?,
             &self.signature,
         )
+    }
+
+    /// Verify a live card, rejecting it at or after its expiry timestamp.
+    /// `now` is caller-supplied Unix time in seconds.
+    pub fn verify_at(&self, now: u64) -> Result<(), WhnError> {
+        self.verify()?;
+        if self.is_expired(now) {
+            return Err(WhnError::Expired);
+        }
+        Ok(())
     }
 
     pub fn is_expired(&self, now: u64) -> bool {
         now >= self.expires_at
     }
+}
+
+fn validate_header(spec: &str, kind: &str, expected: &'static str) -> Result<(), WhnError> {
+    if spec != SPEC_VERSION {
+        return Err(WhnError::UnsupportedSpec(spec.into()));
+    }
+    if kind != expected {
+        return Err(WhnError::WrongCardType {
+            expected,
+            actual: kind.into(),
+        });
+    }
+    Ok(())
+}
+
+fn validate_fields(
+    tags_field: &'static str,
+    tags: &[String],
+    note_field: &'static str,
+    note: Option<&str>,
+    created_at: u64,
+    expires_at: u64,
+) -> Result<(), WhnError> {
+    if tags.is_empty() || tags.iter().any(|tag| tag.trim().is_empty()) {
+        return Err(WhnError::InvalidTags(tags_field));
+    }
+    if note.is_some_and(|text| text.chars().count() > 280) {
+        return Err(WhnError::NoteTooLong(note_field));
+    }
+    if expires_at <= created_at {
+        return Err(WhnError::InvalidValidityPeriod);
+    }
+    Ok(())
 }

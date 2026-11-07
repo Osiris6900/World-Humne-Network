@@ -14,6 +14,19 @@ pub enum WhnError {
     IdMismatch,
     #[error("urgency must be 1..=5, got {0}")]
     BadUrgency(u8),
+    #[error("unsupported protocol spec: {0}")]
+    UnsupportedSpec(String),
+    #[error("expected card type {expected}, got {actual}")]
+    WrongCardType {
+        expected: &'static str,
+        actual: String,
+    },
+    #[error("{0} must contain at least one tag, with no blank tags")]
+    InvalidTags(&'static str),
+    #[error("{0} must be at most 280 Unicode scalar values")]
+    NoteTooLong(&'static str),
+    #[error("expires_at must be greater than created_at")]
+    InvalidValidityPeriod,
     #[error("card is expired")]
     Expired,
 }
