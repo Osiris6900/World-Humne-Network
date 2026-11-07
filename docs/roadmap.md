@@ -6,6 +6,12 @@ Each phase is tracked as a GitHub issue. Phases are sequential in dependency, bu
 Define and implement Capability/Need card schema, canonical serialization, Ed25519 sign/verify, card ids (blake3). Golden test vectors so other-language clients can verify interop.
 **Done when:** two independent implementations (or a Rust impl + test vectors) produce identical ids and verify each other's signatures.
 
+Implementation: Rust cards/signing and schema validation, published
+[v0 JSON vectors](../test-vectors/README.md), an independent Python verifier,
+and CI checks are present. Canonical CBOR remains future work; this phase uses
+the protocol's permitted interim JSON profile. This is not evidence of working
+network transport or a multi-host demo.
+
 ## Phase 2 — DHT discovery
 Publish/resolve capability cards on a Kademlia DHT under the `/whn/0.1/` key layout, with expiry and republish. Self-certifying record validation.
 **Done when:** a card published by one host is retrievable by another host after churn (nodes leaving/joining).

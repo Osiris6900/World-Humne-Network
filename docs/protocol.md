@@ -1,6 +1,6 @@
 # World-Humne-Network Protocol — Draft v0.1
 
-Status: **draft, pre-implementation.** Language-neutral. Any client (Rust, Go, TypeScript, …) that satisfies this spec can join the same network.
+Status: **draft; Phase 1 Rust core implemented with v0 JSON interoperability vectors.** Networking layers remain unimplemented. Language-neutral. Any client (Rust, Go, TypeScript, …) that satisfies this spec should be able to join the same network once those layers are built.
 
 ## 0. Layer overview
 
@@ -25,6 +25,13 @@ Layers 1–2 reuse mature libp2p building blocks. Layers 3–5 are defined here.
 ## 2. Core objects
 
 All objects are canonical-CBOR (or canonical JSON for v0 interop testing) with a signature over the canonical bytes of every field except `signature`.
+
+The current reference core uses the interim JSON profile documented in
+[test-vectors/README.md](../test-vectors/README.md); canonical CBOR is not
+implemented. For card ids, the canonical body excludes **both** `id` and
+`signature`, avoiding a circular hash. Signing includes `id` and excludes only
+`signature`. Field order, optional-field handling and string encoding are part
+of that profile, not an unspecified JSON canonicalization convention.
 
 ### 2.1 Capability Card
 
@@ -66,6 +73,23 @@ All objects are canonical-CBOR (or canonical JSON for v0 interop testing) with a
 
 - `urgency`: integer 1–5, self-declared. Ranking may down-weight chronic max-urgency publishers (§6).
 - `region_hint`: coarse, optional, self-chosen (ISO-3166-2 style). Never precise GPS by default.
+
+#### v0 card validation
+
+- `spec` must be `whn/0.1`; `type` must match the decoded card schema.
+- `offers` / `needs` must contain at least one tag and no blank/whitespace-only tags.
+- `note` / `capacity_note`, when present, are at most 280 Unicode scalar values
+  (not bytes or grapheme clusters). No Unicode normalization is applied.
+- `expires_at` must be greater than `created_at`; both are unsigned 64-bit Unix seconds.
+- Unknown and duplicate JSON fields are rejected. Optional null fields are
+  treated as absent; empty strings remain present and are signed.
+- Live acceptance additionally rejects cards when `now >= expires_at`.
+  The Rust API exposes this as `verify_at(now)`; `verify()` remains time-independent.
+- Key/signature encodings are unpadded base64url. Ed25519 verification is strict,
+  rejecting small-order public keys and signature points.
+
+These checks do not yet implement PoW, rate limits or reputation. Region
+format and future timestamp/clock-skew policy are not enforced in this core.
 
 ### 2.3 Attestation
 

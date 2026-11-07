@@ -1,0 +1,108 @@
+{
+  "profile": "whn-json-v0-field-order-1",
+  "secret_key_hex_for_tests_only": "0707070707070707070707070707070707070707070707070707070707070707",
+  "vectors": [
+    {
+      "card": {
+        "created_at": 1730000000,
+        "expires_at": 1732600000,
+        "id": "02daf006bb085b90168c149e81b80297d7be0e8ad081df1c4b7eea3741aed330",
+        "offers": [
+          "water-purifier",
+          "welding"
+        ],
+        "pow_nonce": "",
+        "pubkey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "signature": "XwfvFqrCWH9OfnXf5Zd5R8foiiDxW6lx9hQqJG-wU0SW4Fu5pZ9zRa9U2g9yn7vV86Itr08A0npoh93Iz6EiAQ",
+        "spec": "whn/0.1",
+        "type": "capability"
+      },
+      "id_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"capability\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"offers\":[\"water-purifier\",\"welding\"],\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"\"}",
+      "name": "capability_minimal",
+      "signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"capability\",\"id\":\"02daf006bb085b90168c149e81b80297d7be0e8ad081df1c4b7eea3741aed330\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"offers\":[\"water-purifier\",\"welding\"],\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"\"}"
+    },
+    {
+      "card": {
+        "capacity_note": "पानी 💧\n\"free\"\\shared\t\u0001",
+        "contact_hint": "peer:example/जल",
+        "created_at": 1730000000,
+        "expires_at": 1732600000,
+        "id": "41691a3d603cf372736fe84d32844ffccbe9ffdb13649acc11596f4df4060acf",
+        "offers": [
+          "water-purifier"
+        ],
+        "pow_nonce": "42",
+        "pubkey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "region_hint": "IN-RJ",
+        "signature": "dqWl-RMWuZSeEM0BNJYNfIy3a0TqqQlgJ0wwKJwiaRMSmg4Wm3ebWTZHHHgmZuKPKRoam-vGIhk-7RlZnfr4Aw",
+        "spec": "whn/0.1",
+        "type": "capability"
+      },
+      "id_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"capability\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"offers\":[\"water-purifier\"],\"region_hint\":\"IN-RJ\",\"capacity_note\":\"पानी 💧\\n\\\"free\\\"\\\\shared\\t\\u0001\",\"contact_hint\":\"peer:example/जल\",\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"42\"}",
+      "name": "capability_full_unicode",
+      "signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"capability\",\"id\":\"41691a3d603cf372736fe84d32844ffccbe9ffdb13649acc11596f4df4060acf\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"offers\":[\"water-purifier\"],\"region_hint\":\"IN-RJ\",\"capacity_note\":\"पानी 💧\\n\\\"free\\\"\\\\shared\\t\\u0001\",\"contact_hint\":\"peer:example/जल\",\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"42\"}"
+    },
+    {
+      "card": {
+        "created_at": 1730000000,
+        "expires_at": 1732600000,
+        "id": "3896bc44de60105623556482f0180a1e3aebae75fdc1a48862ac3e91d76af5ae",
+        "needs": [
+          "drinking-water"
+        ],
+        "pow_nonce": "",
+        "pubkey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "signature": "QkZjWG2wKxHOdO1VkyCODbogDKAPpY6BRN8gZTEcefhzr4_4NHlSGjxpLUrsE1G3_T3dGLaMcyJDcf2M52UnDA",
+        "spec": "whn/0.1",
+        "type": "need",
+        "urgency": 1
+      },
+      "id_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"drinking-water\"],\"urgency\":1,\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"\"}",
+      "name": "need_minimal",
+      "signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"id\":\"3896bc44de60105623556482f0180a1e3aebae75fdc1a48862ac3e91d76af5ae\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"drinking-water\"],\"urgency\":1,\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"\"}"
+    },
+    {
+      "card": {
+        "created_at": 1730000000,
+        "expires_at": 1732600000,
+        "id": "9ed1461e68b6e98c3510b89d8ad3f5b93583fbe4eaafd0d7593095163a208cbe",
+        "needs": [
+          "drinking-water",
+          "solar-pump-repair"
+        ],
+        "note": "जल 💧\r\n\"urgent\"\\help\t\u0000",
+        "pow_nonce": "0007",
+        "pubkey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "region_hint": "IN-RJ",
+        "signature": "mrXHNxyvmj9nBwPUKiq23ZVHxqFlJWcmA05GRYQ5xvoC6URgEdtpVcB_Ay1dyLFzYFI_fIHY-8PUjFRKJk9pCQ",
+        "spec": "whn/0.1",
+        "type": "need",
+        "urgency": 5
+      },
+      "id_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"drinking-water\",\"solar-pump-repair\"],\"region_hint\":\"IN-RJ\",\"urgency\":5,\"note\":\"जल 💧\\r\\n\\\"urgent\\\"\\\\help\\t\\u0000\",\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"0007\"}",
+      "name": "need_full_unicode",
+      "signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"id\":\"9ed1461e68b6e98c3510b89d8ad3f5b93583fbe4eaafd0d7593095163a208cbe\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"drinking-water\",\"solar-pump-repair\"],\"region_hint\":\"IN-RJ\",\"urgency\":5,\"note\":\"जल 💧\\r\\n\\\"urgent\\\"\\\\help\\t\\u0000\",\"created_at\":1730000000,\"expires_at\":1732600000,\"pow_nonce\":\"0007\"}"
+    },
+    {
+      "card": {
+        "created_at": 9007199254740993,
+        "expires_at": 18446744073709551615,
+        "id": "4f525bdb764c66a912990324310ef2e2ae77df1407a00f51335642a3d35d857a",
+        "needs": [
+          "compute"
+        ],
+        "note": "",
+        "pow_nonce": "",
+        "pubkey": "6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw",
+        "region_hint": "",
+        "signature": "2qGD2uZrM_MdUy_bAhx5FIggs4XswhMITygAVmZWr-16kyzlQDL8yOIHqN1czu9s-giaPdgoVgc6DQWtbj70Ag",
+        "spec": "whn/0.1",
+        "type": "need",
+        "urgency": 3
+      },
+      "id_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"compute\"],\"region_hint\":\"\",\"urgency\":3,\"note\":\"\",\"created_at\":9007199254740993,\"expires_at\":18446744073709551615,\"pow_nonce\":\"\"}",
+      "name": "need_empty_optionals_large_timestamps",
+      "signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"need\",\"id\":\"4f525bdb764c66a912990324310ef2e2ae77df1407a00f51335642a3d35d857a\",\"pubkey\":\"6kpsY-KcUgq-9VB7Ey7F-ZVHdq6-vnuSQh7qaRRG0iw\",\"needs\":[\"compute\"],\"region_hint\":\"\",\"urgency\":3,\"note\":\"\",\"created_at\":9007199254740993,\"expires_at\":18446744073709551615,\"pow_nonce\":\"\"}"
+    }
+  ]
+}

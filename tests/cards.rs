@@ -11,13 +11,9 @@ fn fixed_identity() -> Identity {
 #[test]
 fn capability_sign_and_verify() {
     let id = fixed_identity();
-    let card = CapabilityDraft::new(
-        vec!["water-purifier".into(), "welding".into()],
-        T0,
-        T1,
-    )
-    .sign(&id)
-    .unwrap();
+    let card = CapabilityDraft::new(vec!["water-purifier".into(), "welding".into()], T0, T1)
+        .sign(&id)
+        .unwrap();
     card.verify().unwrap();
     assert!(!card.is_expired(T0 + 10));
     assert!(card.is_expired(T1));
@@ -33,7 +29,7 @@ fn need_sign_and_verify() {
 }
 
 #[test]
-fn golden_vectors_are_deterministic() {
+fn signing_is_deterministic() {
     // Same secret + same fields must always produce the same id and signature.
     // This is the property cross-language test vectors rely on.
     let build = || {
@@ -72,7 +68,13 @@ fn forged_signature_fails() {
 #[test]
 fn urgency_bounds_enforced() {
     let id = fixed_identity();
-    assert!(NeedDraft::new(vec!["x".into()], 0, T0, T1).sign(&id).is_err());
-    assert!(NeedDraft::new(vec!["x".into()], 6, T0, T1).sign(&id).is_err());
-    assert!(NeedDraft::new(vec!["x".into()], 5, T0, T1).sign(&id).is_ok());
+    assert!(NeedDraft::new(vec!["x".into()], 0, T0, T1)
+        .sign(&id)
+        .is_err());
+    assert!(NeedDraft::new(vec!["x".into()], 6, T0, T1)
+        .sign(&id)
+        .is_err());
+    assert!(NeedDraft::new(vec!["x".into()], 5, T0, T1)
+        .sign(&id)
+        .is_ok());
 }

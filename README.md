@@ -23,11 +23,30 @@ Most scarcity in the world is not a supply problem — it is a **matching proble
 
 ## Status
 
-Early design phase. The protocol is being specified before code.
+Phase 1 reference core is implemented in Rust: Capability/Need cards,
+Ed25519 signing, BLAKE3 ids, schema validation and published v0 JSON vectors.
+The vectors are independently checked in Python. DHT discovery, P2P transport,
+gossip, matching, ranking and offline sync are not implemented yet.
 
 - [docs/vision.md](docs/vision.md) — why this exists
 - [docs/protocol.md](docs/protocol.md) — draft protocol specification (v0.1)
 - [docs/roadmap.md](docs/roadmap.md) — build phases and release gates
+- [test-vectors/README.md](test-vectors/README.md) — exact JSON bytes and cross-language verification
+
+## Build and verify
+
+```sh
+cargo test --locked --all-targets
+cargo fmt --all -- --check
+cargo clippy --locked --all-targets -- -D warnings
+python3 -m venv .venv
+.venv/bin/python -m pip install -r scripts/requirements-interop.txt
+.venv/bin/python scripts/verify_vectors.py
+```
+
+Use `card.verify_at(unix_seconds)` when accepting a live card; `card.verify()`
+checks schema, id and signature without a wall clock, for archival verification.
+Neither method checks proof-of-work or reputation; those belong to later phases.
 
 ## License
 
