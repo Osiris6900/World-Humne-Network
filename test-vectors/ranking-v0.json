@@ -1,0 +1,47 @@
+{
+  "anchors_millis": {
+    "_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg": 1000
+  },
+  "attestation": {
+    "attestor_pubkey": "_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg",
+    "claim": "verified-real",
+    "created_at": 1800000000,
+    "signature": "lgsj7xNPI2kNuAxLwopHwh_TFI9sRvJLM30rQVk9V7-oBtWor7PpNR_MSJypJL0Nv8NIsdrsCgy4wd9rArd8Cg",
+    "spec": "whn/0.1",
+    "target_card": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "type": "attestation"
+  },
+  "attestation_id": "a15818f7d131fe41e35907b3eaaf2e7a5faaa8361f503ad7f9e9cdc330f58c19",
+  "attestation_signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"attestation\",\"target_card\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"claim\":\"verified-real\",\"attestor_pubkey\":\"_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg\",\"created_at\":1800000000}",
+  "policy": {
+    "half_life_secs": 604800,
+    "hop_discount_millis": 500,
+    "max_depth": 4,
+    "max_evidence_age_secs": 2592000,
+    "max_future_skew_secs": 300,
+    "summary_ttl_secs": 300
+  },
+  "profile": "whn-rank-json-v0-field-order-1",
+  "secret_key_hex_for_tests_only": "0909090909090909090909090909090909090909090909090909090909090909",
+  "summary": {
+    "category": "water",
+    "created_at": 1800000000,
+    "entries": [
+      {
+        "card_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "score_micros": 1050000
+      },
+      {
+        "card_id": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "score_micros": -1950000
+      }
+    ],
+    "policy_id": "0d78e6b3e8a889647a9ee584f4db5a71be7b565e18e6432458933c2e5ca4227c",
+    "publisher_pubkey": "_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg",
+    "region": "IN-RJ",
+    "signature": "3ZKjfEhKD6Y2eMhqLV0x7Uf43g_d65l4yyZQxwUM1nRxOKV4jMeM9jYpRN-6DJ3NjIZWBWtfM0iiImMIZx0ZAw",
+    "spec": "whn/0.1",
+    "type": "ranking-summary"
+  },
+  "summary_signing_payload_utf8": "{\"spec\":\"whn/0.1\",\"type\":\"ranking-summary\",\"category\":\"water\",\"region\":\"IN-RJ\",\"policy_id\":\"0d78e6b3e8a889647a9ee584f4db5a71be7b565e18e6432458933c2e5ca4227c\",\"publisher_pubkey\":\"_RckOFqgx1tk-3jNYC-h2ZH96_drE8WO1wLqyDXp9hg\",\"created_at\":1800000000,\"entries\":[{\"card_id\":\"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\",\"score_micros\":1050000},{\"card_id\":\"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\",\"score_micros\":-1950000}]}"
+}

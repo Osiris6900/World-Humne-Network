@@ -41,13 +41,28 @@ impl Identity {
     }
 }
 
-/// Verify a base64url Ed25519 signature against a base64url public key.
-pub fn verify_b64(pubkey_b64: &str, msg: &[u8], sig_b64: &str) -> Result<(), WhnError> {
+/// Decode a canonical unpadded base64url Ed25519 public key.
+fn decode_public_key(pubkey_b64: &str) -> Result<VerifyingKey, WhnError> {
     let pk_raw = URL_SAFE_NO_PAD
         .decode(pubkey_b64)
         .map_err(|_| WhnError::InvalidEncoding)?;
     let pk_arr: [u8; 32] = pk_raw.try_into().map_err(|_| WhnError::InvalidPublicKey)?;
     let vk = VerifyingKey::from_bytes(&pk_arr).map_err(|_| WhnError::InvalidPublicKey)?;
+    Ok(vk)
+}
+
+/// Validate a canonical unpadded base64url, non-weak Ed25519 public key.
+pub fn validate_public_key_b64(pubkey_b64: &str) -> Result<(), WhnError> {
+    let key = decode_public_key(pubkey_b64)?;
+    if key.is_weak() {
+        return Err(WhnError::InvalidPublicKey);
+    }
+    Ok(())
+}
+
+/// Verify a base64url Ed25519 signature against a base64url public key.
+pub fn verify_b64(pubkey_b64: &str, msg: &[u8], sig_b64: &str) -> Result<(), WhnError> {
+    let vk = decode_public_key(pubkey_b64)?;
 
     let sig_raw = URL_SAFE_NO_PAD
         .decode(sig_b64)

@@ -166,3 +166,92 @@ async fn invalid_cards_are_rejected_before_cache_and_matcher() {
     .unwrap();
     assert_eq!(node.known_cards("water").await.unwrap().needs, vec![valid]);
 }
+
+#[tokio::test]
+async fn signed_rank_transport_does_not_bypass_claim_and_summary_validation() {
+    use whn_core::{
+        attestation::{Attestation, Claim},
+        ranking::{RankingPolicy, RankingSummary, SummaryEntry, TrustAnchors},
+    };
+    let raw = raw_peer().await;
+    let node = Node::spawn(&Identity::generate(), NodeConfig::default())
+        .await
+        .unwrap();
+    let topic = TopicSpec::new(TopicKind::Ranking, "water", "IN-RJ").unwrap();
+    let wrong_region = TopicSpec::new(TopicKind::Ranking, "water", "IN-DL").unwrap();
+    node.subscribe(topic.clone()).await.unwrap();
+    node.subscribe(wrong_region.clone()).await.unwrap();
+    let target = need(Some("IN-RJ"), 60);
+    node.register("water", whn_net::Announcement::Need(target.clone()))
+        .await
+        .unwrap();
+    let signer = Identity::from_secret_bytes(&[31; 32]);
+    node.trust(&signer.public_key_b64(), 1000).await.unwrap();
+    node.connect(raw.address.clone()).await.unwrap();
+    let att = Attestation::sign(&target.id, Claim::VerifiedReal, unix_now(), &signer).unwrap();
+    let payload = serde_json::to_vec(&att).unwrap();
+    let mut forged = att.clone();
+    forged.claim = Claim::Fraudulent;
+    let duplicate = String::from_utf8(payload.clone()).unwrap().replacen(
+        '{',
+        "{\"claim\":\"verified-real\",",
+        1,
+    );
+    let unknown = String::from_utf8(payload.clone())
+        .unwrap()
+        .replacen('{', "{\"extra\":true,", 1);
+    let stale = Attestation::sign(
+        &target.id,
+        Claim::VerifiedReal,
+        unix_now() - 40 * 86400,
+        &signer,
+    )
+    .unwrap();
+    for bad in [
+        serde_json::to_vec(&forged).unwrap(),
+        duplicate.into_bytes(),
+        unknown.into_bytes(),
+        serde_json::to_vec(&stale).unwrap(),
+    ] {
+        send(&raw, &topic, bad).await;
+    }
+    send(&raw, &wrong_region, payload.clone()).await;
+    let mut anchors = TrustAnchors::default();
+    anchors.set(&signer.public_key_b64(), 1000).unwrap();
+    let policy = RankingPolicy::default();
+    let mut summary = RankingSummary::sign(
+        "food",
+        "IN-RJ",
+        &policy.fingerprint(&anchors).unwrap(),
+        vec![SummaryEntry {
+            card_id: target.id.clone(),
+            score_micros: 1,
+        }],
+        unix_now(),
+        &signer,
+    )
+    .unwrap();
+    send(&raw, &topic, serde_json::to_vec(&summary).unwrap()).await;
+    summary.category = "water".into();
+    summary.entries[0].score_micros = i64::MAX;
+    summary.signature = signer.sign(&summary.signing_payload_bytes().unwrap());
+    send(&raw, &topic, serde_json::to_vec(&summary).unwrap()).await;
+    timeout(Duration::from_secs(8), async {
+        while node.stats().await.unwrap().gossip_rejected < 7 {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert_eq!(node.stats().await.unwrap().ranking_attestations, 0);
+    assert_eq!(node.stats().await.unwrap().ranking_summaries, 0);
+    send(&raw, &topic, payload).await;
+    timeout(Duration::from_secs(8), async {
+        while node.stats().await.unwrap().ranking_attestations < 1 {
+            sleep(Duration::from_millis(20)).await;
+        }
+    })
+    .await
+    .unwrap();
+    assert!(node.ranks("water", "IN-RJ").await.unwrap()[0].verified_weight > 0.99);
+}

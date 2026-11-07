@@ -13,7 +13,9 @@ use whn_core::{
     card::{CapabilityCard, CapabilityDraft, NeedCard, NeedDraft},
     crypto::Identity,
 };
-use whn_net::{record::unix_now, Announcement, GossipProfile, Node, NodeConfig, TopicSpec};
+use whn_net::{
+    record::unix_now, Announcement, Attestation, Claim, GossipProfile, Node, NodeConfig, TopicSpec,
+};
 
 #[derive(Deserialize)]
 #[serde(tag = "op", rename_all = "snake_case", deny_unknown_fields)]
@@ -76,6 +78,30 @@ enum Command {
     Matches {
         category: String,
         need_id: String,
+    },
+    Trust {
+        pubkey: String,
+        weight_millis: u16,
+    },
+    CreateAttestation {
+        target_card: String,
+        claim: Claim,
+    },
+    RegisterAttestation {
+        category: String,
+        attestation: Attestation,
+    },
+    AnnounceAttestation {
+        category: String,
+        attestation: Attestation,
+    },
+    Rank {
+        category: String,
+        region: String,
+    },
+    AnnounceRanking {
+        category: String,
+        region: String,
     },
     Stats,
     Shutdown,
@@ -192,6 +218,35 @@ async fn execute(
         Command::Matches { category, need_id } => {
             json!({"ok": true, "candidates": node.matches(&category, &need_id).await?})
         }
+        Command::Trust {
+            pubkey,
+            weight_millis,
+        } => {
+            node.trust(&pubkey, weight_millis).await?;
+            json!({"ok": true})
+        }
+        Command::CreateAttestation { target_card, claim } => {
+            json!({"ok": true, "attestation": Attestation::sign(&target_card, claim, unix_now(), identity)?})
+        }
+        Command::RegisterAttestation {
+            category,
+            attestation,
+        } => {
+            node.register_attestation(&category, attestation).await?;
+            json!({"ok": true})
+        }
+        Command::AnnounceAttestation {
+            category,
+            attestation,
+        } => {
+            json!({"ok": true, "queued_message_id": node.announce_attestation(&category, attestation).await?})
+        }
+        Command::Rank { category, region } => {
+            json!({"ok": true, "ranking": node.ranks(&category, &region).await?})
+        }
+        Command::AnnounceRanking { category, region } => {
+            json!({"ok": true, "queued_message_id": node.publish_ranking(&category, &region).await?})
+        }
         Command::Stats => json!({"ok": true, "stats": node.stats().await?}),
         Command::Shutdown => unreachable!("shutdown handled by main loop"),
     })
@@ -214,8 +269,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 identity_path = Some(args.next().ok_or("--identity-file requires a path")?)
             }
             "--polite" => config.gossip_profile = GossipProfile::Polite,
+            "--ranking-half-life-seconds" => {
+                config.ranking_policy.half_life_secs =
+                    args.next().ok_or("missing half-life")?.parse()?
+            }
+            "--rank-gossip-seconds" => {
+                config.rank_gossip_interval = Some(std::time::Duration::from_secs(
+                    args.next().ok_or("missing rank gossip interval")?.parse()?,
+                ))
+            }
             "--help" | "-h" => {
-                println!("whn-net [--listen /ip4/127.0.0.1/tcp/0] [--identity-file PATH] [--polite]\nCommands: connect, bootstrap, create, create_need, publish, resolve, subscribe, unsubscribe, register_need, register_capability, announce_need, announce_capability, known, matches, stats, shutdown.\nDefault identity is ephemeral; identity files contain a raw private key.");
+                println!("whn-net [--listen ADDRESS] [--identity-file PATH] [--polite] [--ranking-half-life-seconds N] [--rank-gossip-seconds N]\nCommands: connect, bootstrap, create, create_need, publish, resolve, subscribe, unsubscribe, register_need, register_capability, announce_need, announce_capability, known, matches, trust, create_attestation, register_attestation, announce_attestation, rank, announce_ranking, stats, shutdown.\nDefault identity is ephemeral; identity files contain a raw private key. Trust anchors are local choices.");
                 return Ok(());
             }
             _ => return Err(format!("unknown argument: {arg}").into()),
@@ -229,7 +293,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let node = Node::spawn(&identity, config).await?;
     println!(
         "{}",
-        json!({"event": "ready", "peer_id": node.peer_id().to_string(), "address": node.address().to_string(), "transport": "tcp-noise-yamux", "gossip_profile": profile})
+        json!({"event": "ready", "peer_id": node.peer_id().to_string(), "pubkey": identity.public_key_b64(), "address": node.address().to_string(), "transport": "tcp-noise-yamux", "gossip_profile": profile})
     );
     let mut lines = BufReader::new(tokio::io::stdin()).lines();
     while let Some(line) = lines.next_line().await? {
