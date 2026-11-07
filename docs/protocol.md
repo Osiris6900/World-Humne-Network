@@ -1,6 +1,6 @@
 # World-Humne-Network Protocol — Draft v0.1
 
-Status: **draft; Rust cards, TCP/Noise discovery, scoped GossipSub and local candidate matching implemented.** Networking and matching are locally tested; independent-host validation is pending/deferred. Attestation ranking, offline sync and application negotiation remain unimplemented. Language-neutral; clients must agree on the wire profiles described here.
+Status: **draft; Rust cards, TCP/Noise discovery, scoped gossip, matching and attestation-weighted ranking implemented.** Results are local integration evidence; independent-host validation is pending/deferred. Offline sync and application negotiation remain unimplemented. Language-neutral; clients must agree on the wire profiles described here.
 
 ## 0. Layer overview
 
@@ -105,7 +105,20 @@ format and future timestamp/clock-skew policy are not enforced in this core.
 }
 ```
 
-Attestations are the raw material of reputation. A `fraudulent` claim is a signed, public accusation — it costs the attestor reputation if contradicted by later attestations.
+Attestations are the raw material of reputation. A `fraudulent` claim is a
+signed public accusation, not an adjudicated fact. Current ranking applies local
+trust weights and contradictory claims; automatic penalties for demonstrably
+false accusations need a future adjudication policy and are not implemented.
+
+The JSON signing order is exactly the fields above, excluding `signature`.
+Claims use the three exact enum strings shown. Target ids are 64 lowercase hex
+characters. A derived local attestation id is BLAKE3 of these signing bytes;
+it is not another wire field. Unknown/duplicate fields are rejected. Evidence
+is retained for 30 days by default, with at most 300 seconds of future clock
+skew. One latest claim per signer/target is used; same-time conflicts choose
+`fraudulent`, then `fulfilled`, then `verified-real`. Self-attestations and claims
+predating their target are excluded. Fixed vectors are published in
+`test-vectors/ranking-v0.json` and independently checked in Python.
 
 ### 2.4 Revocation
 
@@ -158,9 +171,8 @@ whn/0.1/rank/<category>/<region>     ranking summaries (§6)
 - Battery-constrained nodes MAY subscribe to few topics and lean on DHT pulls; relay-capable nodes SHOULD carry more.
 - Polite mode: reduced fanout, longer heartbeat on mobile profiles.
 
-The reference node implements `need` and `cap` topics, explicit subscribe and
-unsubscribe, and a bounded cache of validated live cards. `rank` topics remain
-future work. Optional/absent `region_hint` maps to the literal topic region
+The reference node implements `need`, `cap` and `rank` topics, explicit subscribe
+and unsubscribe, and bounded card/evidence caches. Optional/absent `region_hint` maps to the literal topic region
 `global`; otherwise the topic region must exactly equal the signed hint.
 Topic regions use 1–32 uppercase ASCII letters/digits/hyphens, starting with a
 letter, or `global`. Categories are the ten canonical names above. The category
@@ -191,19 +203,50 @@ corresponding remote cards, retaining explicitly registered local cards.
 
 ## 6. Ranking — "needs rise on their own"
 
-Local score for a need card:
+Current local score for a need card:
 
 ```
-score(card) = urgency_prior
-            × Σ_attestations  w(attestor) × decay(now - att.created_at)
-            × freshness(now - card.created_at)
+prior = 1 + (urgency - 1) * 0.25
+evidence = 0.05 + verified_weight - 2 * fraudulent_weight
+score = prior * decay(card_age) * evidence / (1 + 2 * fulfilled_weight)
 ```
 
 - `decay`: half-life ~7 days (configurable per category).
-- `w(attestor)`: reputation weight from the attestation graph (§5).
-- `urgency_prior`: tempered — chronic urgency-5 publishers regress toward the mean.
+- `w(attestor)`: weight from the local trust graph (§5); disconnected identities
+  start at zero. There are no implicit global trust roots.
+- The urgency prior is bounded to 1–2. Chronic-publisher history regression is
+  future work; urgency alone cannot create attestation weight.
 - **Gossip aggregation:** nodes periodically publish compact ranking summaries (top-k card ids + observed scores) on `whn/0.1/rank/...`. Receivers merge by weighted average. Global "what matters now" is emergent — computed by everyone, owned by no one.
 - Ranking is always **scoped**: each node sees its own region/topics first. There is no single global leaderboard server.
+
+Trust propagation starts at at most 16 locally configured Ed25519 keys, not keys
+declared trusted by gossip. Positive claims to known signed card authors create
+edges. Self/reciprocal edges are removed. At each of four default depth steps,
+at most half the frontier mass is distributed across distinct recipients;
+older edges decay and previously reached identities are not revisited. Repeated
+cards/claims do not mint more weight for an edge. This is an experimental bounded
+trust model, not a proven Sybil-resistant reputation system.
+
+If weighted fraudulent evidence exceeds verified-real evidence, a need is locally
+quarantined below zero. Fulfilment claims reduce active priority and can support
+the author's reputation. Expired cards leave the live ranking, while signed target
+proofs referenced by retained evidence preserve historical reputation.
+
+`rank` topics carry full signed `attestation` objects and signed
+`ranking-summary` objects. Targets must already be known to bind an attestation
+to its category/region; unknown targets are ignored until rediscovery/rebroadcast.
+Summaries sign category, region, a policy fingerprint, publisher key, timestamp
+and at most 32 `(card_id, score_micros)` entries. Scores use signed integer
+millionths, bounded to ±64,000,000. The policy fingerprint includes algorithm
+profile, policy parameters and sorted local trust anchors/weights.
+
+Compatible summaries live for five minutes. The receiver keeps at most one
+latest vote per publisher and weights it by locally derived reputation, not a
+weight supplied by the publisher. Its own local score has weight 1. Remote hints
+cannot lift local quarantine. Summaries contain local scores, not recursively
+aggregated ones. Valid incompatible-policy summaries may be forwarded but are not
+stored as local votes. Automatic publishing runs on explicitly subscribed rank
+topics every 30 seconds (90 in polite mode). See [ranking.md](ranking.md).
 
 ## 7. Matching
 
@@ -217,11 +260,14 @@ Purely local:
 The Phase 3 reference matcher currently implements candidate suggestions only:
 exact, case-sensitive shared tags; same-region/country-prefix proximity; and
 capability freshness. Tags are deduplicated; no-overlap and self-authored pairs
-are excluded. Reputation is a neutral multiplier of 1.0 until Phase 4. Capacity
+are excluded. The node applies a reputation multiplier `0.1 + 0.9 * w(author)`
+and excludes capabilities whose local fraudulent evidence outweighs positive
+evidence. The pure core scorer remains usable with neutral reputation. Capacity
 notes are displayed as signed text, not interpreted numerically. Synonyms and
 semantic mappings (such as `drinking-water` versus `water-purifier`) require a
 shared tag or a future taxonomy layer. Application-level negotiation sessions
-and outcome attestations are not implemented. See [matching.md](matching.md).
+are not implemented; signed outcome claims are available as attestations.
+See [matching.md](matching.md).
 
 ## 8. Sync & offline
 

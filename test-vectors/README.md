@@ -62,3 +62,18 @@ diff -u test-vectors/cards-v0.json /tmp/cards-v0.json
 
 CI runs both implementations and the regeneration comparison. Fixture changes
 require explicit review as protocol compatibility changes.
+
+## Ranking objects
+
+`ranking-v0.json` publishes a separate
+`whn-rank-json-v0-field-order-1` fixture with signed attestation and ranking-summary
+bytes, attestation id and policy fingerprint. All policy/score values on the wire
+are integers. The test secret (`09` repeated 32 times) is public fixture data only.
+
+```sh
+cargo run --locked --quiet --example print_rank_vectors > /tmp/ranking-v0.json
+diff -u test-vectors/ranking-v0.json /tmp/ranking-v0.json
+.venv/bin/python scripts/verify_rank_vectors.py
+```
+
+The exact field orders and scoring policy are in [ranking.md](../docs/ranking.md).

@@ -22,11 +22,12 @@ use whn_core::{card::CapabilityCard, crypto::Identity};
 
 use crate::{
     gossip::{
-        Announcement, GossipCache, GossipProfile, GossipSnapshot, SubscriptionFilter, TopicSpec,
-        WhnSubscriptionFilter,
+        Announcement, GossipCache, GossipProfile, GossipSnapshot, SubscriptionFilter, TopicKind,
+        TopicSpec, WhnSubscriptionFilter,
     },
+    rank::RankingState,
     record::{records_for, unix_now, validate_record, ValidatingStore},
-    Error,
+    Attestation, Error, RankedNeed, RankingPolicy,
 };
 
 type Reply<T> = oneshot::Sender<Result<T, Error>>;
@@ -43,6 +44,9 @@ pub struct NodeConfig {
     /// republishing reports success only when this whole target is met.
     pub replication_factor: NonZeroUsize,
     pub gossip_profile: GossipProfile,
+    pub ranking_policy: RankingPolicy,
+    /// None selects 30 seconds (standard) or 90 seconds (polite).
+    pub rank_gossip_interval: Option<Duration>,
 }
 
 impl Default for NodeConfig {
@@ -55,6 +59,8 @@ impl Default for NodeConfig {
             replication_interval: Duration::from_secs(60),
             replication_factor: NonZeroUsize::new(3).unwrap(),
             gossip_profile: GossipProfile::Standard,
+            ranking_policy: RankingPolicy::default(),
+            rank_gossip_interval: None,
         }
     }
 }
@@ -72,6 +78,10 @@ pub struct NodeStats {
     pub gossip_subscriptions: usize,
     /// Connected peers advertising each topic; this is not a delivery ACK.
     pub gossip_subscribers: BTreeMap<String, usize>,
+    pub ranking_attestations: usize,
+    pub ranking_summaries: usize,
+    pub ranking_anchors: usize,
+    pub ranking_published: u64,
 }
 
 #[derive(NetworkBehaviour)]
@@ -97,6 +107,11 @@ enum Command {
         String,
         Reply<Vec<whn_core::matcher::MatchCandidate>>,
     ),
+    Trust(String, u16, Reply<()>),
+    RegisterAttestation(String, Attestation, Reply<()>),
+    AnnounceAttestation(String, Attestation, Reply<String>),
+    Rank(String, String, Reply<Vec<RankedNeed>>),
+    PublishRanking(String, String, Reply<String>),
 }
 
 enum Pending {
@@ -128,6 +143,17 @@ pub struct Node {
 
 impl Node {
     pub async fn spawn(identity: &Identity, config: NodeConfig) -> Result<Self, Error> {
+        let ranking = RankingState::new(config.ranking_policy.clone())?;
+        let rank_interval = config
+            .rank_gossip_interval
+            .unwrap_or(match config.gossip_profile {
+                GossipProfile::Standard => Duration::from_secs(30),
+                GossipProfile::Polite => Duration::from_secs(90),
+            });
+        if rank_interval < Duration::from_millis(100) || rank_interval > Duration::from_secs(86400)
+        {
+            return Err(Error::Configuration("rank interval must be 100ms..=24h"));
+        }
         if config.query_timeout.is_zero()
             || config.replication_interval.is_zero()
             || config.republish_interval <= config.replication_interval
@@ -198,6 +224,9 @@ impl Node {
             receiver,
             ready,
             config.gossip_profile.subscription_limit(),
+            ranking,
+            Identity::from_secret_bytes(&identity.secret_bytes()),
+            rank_interval,
         ));
         // Construct the guard before waiting, so cancellation also stops the swarm.
         let mut node = Self {
@@ -295,6 +324,35 @@ impl Node {
         self.request(|reply| Command::Matches(category.into(), need_id.into(), reply))
             .await
     }
+    /// Configure local trust; weights are thousandths, 0 removes an anchor.
+    pub async fn trust(&self, pubkey: &str, weight_millis: u16) -> Result<(), Error> {
+        self.request(|reply| Command::Trust(pubkey.into(), weight_millis, reply))
+            .await
+    }
+    pub async fn register_attestation(
+        &self,
+        category: &str,
+        attestation: Attestation,
+    ) -> Result<(), Error> {
+        self.request(|reply| Command::RegisterAttestation(category.into(), attestation, reply))
+            .await
+    }
+    pub async fn announce_attestation(
+        &self,
+        category: &str,
+        attestation: Attestation,
+    ) -> Result<String, Error> {
+        self.request(|reply| Command::AnnounceAttestation(category.into(), attestation, reply))
+            .await
+    }
+    pub async fn ranks(&self, category: &str, region: &str) -> Result<Vec<RankedNeed>, Error> {
+        self.request(|reply| Command::Rank(category.into(), region.into(), reply))
+            .await
+    }
+    pub async fn publish_ranking(&self, category: &str, region: &str) -> Result<String, Error> {
+        self.request(|reply| Command::PublishRanking(category.into(), region.into(), reply))
+            .await
+    }
 }
 
 impl Drop for Node {
@@ -312,6 +370,9 @@ async fn run(
     mut commands: mpsc::Receiver<Command>,
     ready: Reply<Multiaddr>,
     subscription_limit: usize,
+    mut ranking: RankingState,
+    signer: Identity,
+    rank_interval: Duration,
 ) {
     let mut ready = Some(ready);
     let mut pending = HashMap::<QueryId, Pending>::new();
@@ -319,6 +380,7 @@ async fn run(
     let mut maintenance = time::interval(Duration::from_millis(250));
     let mut stats = NodeStats::default();
     let mut cache = GossipCache::default();
+    let mut rank_tick = time::interval(rank_interval);
     loop {
         tokio::select! {
             command = commands.recv() => {
@@ -374,6 +436,8 @@ async fn run(
                         cache.prune(unix_now());
                         stats.gossip_cached_cards = cache.len();
                         stats.gossip_subscriptions = swarm.behaviour().gossip.topics().count();
+                        ranking.prune(unix_now());
+                        (stats.ranking_attestations, stats.ranking_summaries, stats.ranking_anchors) = ranking.counts();
                         stats.gossip_subscribers.clear();
                         for (_, topics) in swarm.behaviour().gossip.all_peers() {
                             for topic in topics { *stats.gossip_subscribers.entry(topic.to_string()).or_default() += 1; }
@@ -393,6 +457,7 @@ async fn run(
                         let result = spec.topic().map(|topic| {
                             let removed = swarm.behaviour_mut().gossip.unsubscribe(&topic);
                             cache.unsubscribe(&spec);
+                            ranking.unsubscribe(&spec);
                             removed
                         });
                         let _ = reply.send(result);
@@ -412,7 +477,47 @@ async fn run(
                         let _ = reply.send(result);
                     }
                     Command::Snapshot(category, reply) => { let _ = reply.send(cache.snapshot(&category, unix_now())); }
-                    Command::Matches(category, need_id, reply) => { let _ = reply.send(cache.matches(&category, &need_id, unix_now())); }
+                    Command::Matches(category, need_id, reply) => {
+                        let result = (|| {
+                            let mut candidates = cache.matches(&category, &need_id, unix_now())?;
+                            let snapshot = cache.snapshot(&category, unix_now())?;
+                            ranking.weight_candidates(&category, &snapshot, &mut candidates, unix_now())?;
+                            Ok(candidates)
+                        })();
+                        let _ = reply.send(result);
+                    }
+                    Command::Trust(pubkey, weight, reply) => { let _ = reply.send(ranking.trust(&pubkey, weight)); }
+                    Command::RegisterAttestation(category, att, reply) => {
+                        let result = (|| {
+                            let snapshot = cache.snapshot(&category, unix_now())?;
+                            let spec = ranking.attestation_topic(&category, &att, &snapshot)?;
+                            ranking.insert_attestation(&spec, att, &snapshot, true, unix_now())
+                        })();
+                        let _ = reply.send(result);
+                    }
+                    Command::AnnounceAttestation(category, att, reply) => {
+                        let result = (|| {
+                            let snapshot = cache.snapshot(&category, unix_now())?;
+                            let spec = ranking.attestation_topic(&category, &att, &snapshot)?;
+                            let payload = serde_json::to_vec(&att)?;
+                            // Do not mutate local evidence if queuing fails.
+                            let mut candidate = ranking.clone();
+                            candidate.insert_attestation(&spec, att, &snapshot, true, unix_now())?;
+                            let id = swarm.behaviour_mut().gossip.publish(spec.topic()?, payload).map_err(network_error)?;
+                            ranking = candidate;
+                            Ok(id.to_string())
+                        })();
+                        let _ = reply.send(result);
+                    }
+                    Command::Rank(category, region, reply) => {
+                        let result = cache.snapshot(&category, unix_now()).and_then(|snapshot| ranking.ranks(&category, &region, &snapshot, &signer.public_key_b64(), unix_now()));
+                        let _ = reply.send(result);
+                    }
+                    Command::PublishRanking(category, region, reply) => {
+                        let result = publish_rank(&mut swarm, &mut ranking, &mut cache, &signer, &category, &region);
+                        if result.is_ok() { stats.ranking_published += 1; }
+                        let _ = reply.send(result);
+                    }
                 }
             }
             event = swarm.select_next_some() => match event {
@@ -446,12 +551,17 @@ async fn run(
                         if !swarm.behaviour().gossip.topics().any(|topic| *topic == message.topic) {
                             return Err(Error::InvalidTopic);
                         }
-                        let card = Announcement::from_wire(&spec, &message.data, unix_now())?;
-                        cache.insert(&spec.category, card, false, unix_now())
+                        if spec.kind == TopicKind::Ranking {
+                            let snapshot = cache.snapshot(&spec.category, unix_now())?;
+                            ranking.ingest(&spec, &message.data, &snapshot, unix_now())
+                        } else {
+                            let card = Announcement::from_wire(&spec, &message.data, unix_now())?;
+                            cache.insert(&spec.category, card, false, unix_now())
+                        }
                     })();
                     let acceptance = match accepted {
                         Ok(()) => { stats.gossip_accepted += 1; gossipsub::MessageAcceptance::Accept }
-                        Err(Error::CacheFull) => { stats.gossip_ignored += 1; gossipsub::MessageAcceptance::Ignore }
+                        Err(Error::CacheFull | Error::NotFound) => { stats.gossip_ignored += 1; gossipsub::MessageAcceptance::Ignore }
                         Err(_) => { stats.gossip_rejected += 1; gossipsub::MessageAcceptance::Reject }
                     };
                     let _ = swarm.behaviour_mut().gossip.report_message_validation_result(&message_id, &propagation_source, acceptance);
@@ -461,6 +571,7 @@ async fn run(
             _ = maintenance.tick() => {
                 swarm.behaviour_mut().kad.store_mut().prune();
                 cache.prune(unix_now());
+                ranking.prune(unix_now());
                 let cancelled: Vec<_> = pending.iter().filter(|(_, p)| p.is_closed()).map(|(id, _)| *id).collect();
                 for id in cancelled {
                     pending.remove(&id);
@@ -470,6 +581,12 @@ async fn run(
                     waiters.retain(|reply| !reply.is_closed());
                     !waiters.is_empty()
                 });
+            }
+            _ = rank_tick.tick() => {
+                let topics: Vec<_> = swarm.behaviour().gossip.topics().filter_map(|topic| TopicSpec::parse(topic.as_str()).ok()).filter(|spec| spec.kind == TopicKind::Ranking).collect();
+                for spec in topics {
+                    if publish_rank(&mut swarm, &mut ranking, &mut cache, &signer, &spec.category, &spec.region).is_ok() { stats.ranking_published += 1; }
+                }
             }
         }
     }
@@ -501,7 +618,39 @@ fn reject_busy(command: Command) {
         Command::Matches(_, _, reply) => {
             let _ = reply.send(Err(Error::Busy));
         }
+        Command::Trust(_, _, reply) | Command::RegisterAttestation(_, _, reply) => {
+            let _ = reply.send(Err(Error::Busy));
+        }
+        Command::AnnounceAttestation(_, _, reply) | Command::PublishRanking(_, _, reply) => {
+            let _ = reply.send(Err(Error::Busy));
+        }
+        Command::Rank(_, _, reply) => {
+            let _ = reply.send(Err(Error::Busy));
+        }
     }
+}
+
+fn publish_rank(
+    swarm: &mut Swarm<Behaviour>,
+    ranking: &mut RankingState,
+    cache: &mut GossipCache,
+    identity: &Identity,
+    category: &str,
+    region: &str,
+) -> Result<String, Error> {
+    let spec = TopicSpec::new(TopicKind::Ranking, category, region)?;
+    let snapshot = cache.snapshot(category, unix_now())?;
+    let summary = ranking.summary(category, region, &snapshot, identity, unix_now())?;
+    let payload = serde_json::to_vec(&summary)?;
+    if payload.len() > crate::record::MAX_RECORD_BYTES {
+        return Err(Error::RecordTooLarge);
+    }
+    Ok(swarm
+        .behaviour_mut()
+        .gossip
+        .publish(spec.topic()?, payload)
+        .map_err(network_error)?
+        .to_string())
 }
 
 fn handle_query(

@@ -22,7 +22,9 @@ id. The output records the need id, candidate id, shared tags and score, with
 
 This is local integration evidence. Independent-machine demos are deferred;
 Phase 3 issue #5 remains open. A candidate is not a completed or accepted match.
-Application negotiation, fulfilment and attestations are not implemented.
+Application negotiation and actual fulfilment are not implemented. Signed
+outcome claims and reputation-based candidate weights are described in
+[ranking.md](ranking.md).
 
 ## CLI operations
 
@@ -90,11 +92,15 @@ It does not infer that `drinking-water` matches `water-purifier`.
 tag_coverage = count(shared unique tags) / count(unique need tags)
 region_affinity = 1.0 same hint, 0.6 same country prefix, 0.2 different, 0.4 missing
 freshness = 1 / (1 + capability_age_seconds / 86400)
-score = tag_coverage * (0.7 + 0.3 * region_affinity) * freshness * 1.0
+base_score = tag_coverage * (0.7 + 0.3 * region_affinity) * freshness
+node_score = base_score * (0.1 + 0.9 * locally_derived_author_reputation)
 ```
 
 Region is coarse self-declared text, not verified location or measured distance.
-Reputation's multiplier is neutral (`1.0`), not a trust claim. Urgency belongs to
+The pure core scorer keeps a neutral multiplier; the running node applies the
+local reputation policy and removes locally quarantined capabilities. New
+identities retain a 0.1 matching multiplier but zero attestation voting weight.
+This is a candidate heuristic, not a verified trust claim. Urgency belongs to
 the need and does not distinguish capabilities for that same need. Scores change
 with time; ties at the same time break by capability id. No capacity amount is
 inferred from free-text notes.

@@ -15,7 +15,7 @@ pub struct MatchCandidate {
     pub tag_coverage: f64,
     pub region_affinity: f64,
     pub freshness: f64,
-    /// Neutral until attestation-weighted reputation is implemented.
+    /// Neutral in the base scorer; the node applies its local trust policy.
     pub reputation_weight: f64,
     pub score: f64,
 }

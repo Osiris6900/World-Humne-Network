@@ -30,8 +30,10 @@ TCP/Noise/Yamux transport and validated capability-card publish/resolve on
 Kademlia, with expiry and automatic republishing. Local TCP churn tests and a
 three-process CLI smoke test exercise this implementation; independent-host
 validation is still pending. Scoped GossipSub need/capability announcements and
-a deterministic local matcher now provide candidate discovery. Ranking with
-attestations, offline sync and direct application negotiation remain future work.
+a deterministic local matcher now provide candidate discovery. Signed
+attestations, locally anchored reputation, time-decayed need ranking and signed
+ranking summaries are implemented with local tests. Offline sync and direct
+application negotiation remain future work. Independent-host gates remain pending.
 
 - [docs/vision.md](docs/vision.md) — why this exists
 - [docs/protocol.md](docs/protocol.md) — draft protocol specification (v0.1)
@@ -39,6 +41,7 @@ attestations, offline sync and direct application negotiation remain future work
 - [test-vectors/README.md](test-vectors/README.md) — exact JSON bytes and cross-language verification
 - [docs/discovery.md](docs/discovery.md) — run nodes, publish/resolve cards, and validate across hosts
 - [docs/matching.md](docs/matching.md) — scoped gossip, local candidates and the two-process demo
+- [docs/ranking.md](docs/ranking.md) — signed claims, local trust policy and ranking gossip
 
 ## Build and verify
 
@@ -49,9 +52,11 @@ cargo clippy --locked --workspace --all-targets -- -D warnings
 python3 -m venv .venv
 .venv/bin/python -m pip install -r scripts/requirements-interop.txt
 .venv/bin/python scripts/verify_vectors.py
+.venv/bin/python scripts/verify_rank_vectors.py
 cargo build --locked -p whn-net
 python3 scripts/dht_smoke.py
 python3 scripts/matching_smoke.py
+python3 scripts/ranking_smoke.py
 ```
 
 Use `card.verify_at(unix_seconds)` when accepting a live card; `card.verify()`

@@ -38,6 +38,15 @@ See [matching.md](matching.md).
 Attestation objects, reputation weighting, time-decay scoring, ranking-summary gossip. Fraudulent-claim path.
 **Done when:** in a multi-host testnet, an attested need outranks an unattested one on all honest nodes, and a fraud-flagged card sinks.
 
+Implementation: signed claims, latest-claim deduplication, configurable
+time-decay, local trust anchors, bounded non-reciprocal graph propagation and
+signed ranking-summary gossip with weighted merging are present. The local
+three-process demo verifies consistent verified/plain/flagged ordering with
+the same explicit trust policy. Matcher candidates also use reputation and
+exclude locally quarantined capabilities. Multi-host validation is still
+pending/deferred; this implementation does not close the acceptance gate.
+See [ranking.md](ranking.md).
+
 ## Phase 5 — Sync & anti-spam
 CRDT cache + digest sync, per-card PoW, per-identity rate limits, revocation propagation.
 **Done when:** a node offline 48h resyncs fully; a flood attempt from fresh identities is throttled without affecting established nodes.

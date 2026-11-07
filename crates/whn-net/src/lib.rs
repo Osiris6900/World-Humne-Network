@@ -2,11 +2,16 @@
 
 pub mod gossip;
 mod node;
+mod rank;
 pub mod record;
 
 pub use gossip::{Announcement, GossipProfile, GossipSnapshot, TopicKind, TopicSpec};
 pub use libp2p::{Multiaddr, PeerId};
 pub use node::{Node, NodeConfig, NodeStats};
+pub use whn_core::{
+    attestation::{Attestation, Claim},
+    ranking::{RankedNeed, RankingPolicy, RankingSummary},
+};
 
 #[derive(Debug, thiserror::Error)]
 pub enum Error {

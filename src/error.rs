@@ -2,6 +2,8 @@ use thiserror::Error;
 
 #[derive(Error, Debug)]
 pub enum WhnError {
+    #[error("invalid object: {0}")]
+    InvalidObject(&'static str),
     #[error("serialization failed: {0}")]
     Serialization(#[from] serde_json::Error),
     #[error("invalid base64 encoding in key or signature")]

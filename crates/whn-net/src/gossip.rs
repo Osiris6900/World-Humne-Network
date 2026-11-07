@@ -71,6 +71,8 @@ pub enum TopicKind {
     Need,
     #[serde(rename = "cap")]
     Capability,
+    #[serde(rename = "rank")]
+    Ranking,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -117,6 +119,7 @@ impl TopicSpec {
         let kind = match fields[2] {
             "need" => TopicKind::Need,
             "cap" => TopicKind::Capability,
+            "rank" => TopicKind::Ranking,
             _ => return Err(Error::InvalidTopic),
         };
         Self::new(kind, fields[3], fields[4])
@@ -129,6 +132,7 @@ impl TopicSpec {
             match self.kind {
                 TopicKind::Need => "need",
                 TopicKind::Capability => "cap",
+                TopicKind::Ranking => "rank",
             },
             self.category,
             self.region
@@ -224,6 +228,11 @@ impl Announcement {
         let card = match topic.kind {
             TopicKind::Need => Self::Need(serde_json::from_slice(payload)?),
             TopicKind::Capability => Self::Capability(serde_json::from_slice(payload)?),
+            TopicKind::Ranking => {
+                return Err(Error::InvalidAnnouncement(
+                    "rank topics require ranking messages",
+                ))
+            }
         };
         card.validate(now)?;
         if card.region() != topic.region {
@@ -325,9 +334,7 @@ impl GossipCache {
             .iter()
             .find(|c| c.id == need_id)
             .ok_or(Error::NotFound)?;
-        let mut result = rank_candidates(need, &snapshot.capabilities, now)?;
-        result.truncate(100);
-        Ok(result)
+        Ok(rank_candidates(need, &snapshot.capabilities, now)?)
     }
 }
 
@@ -363,7 +370,7 @@ mod tests {
         }
         for name in [
             "whn/0.2/need/water/IN-RJ",
-            "whn/0.1/rank/water/IN-RJ",
+            "whn/0.1/chat/water/IN-RJ",
             "whn/0.1/need/money/IN-RJ",
             "whn/0.1/need/water/",
             "whn/0.1/need/water/IN/RJ",

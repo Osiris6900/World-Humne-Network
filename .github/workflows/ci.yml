@@ -24,10 +24,14 @@ jobs:
         run: |
           cargo run --locked --quiet --example print_vectors > /tmp/cards-v0.json
           diff -u test-vectors/cards-v0.json /tmp/cards-v0.json
+          cargo run --locked --quiet --example print_rank_vectors > /tmp/ranking-v0.json
+          diff -u test-vectors/ranking-v0.json /tmp/ranking-v0.json
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
       - run: python -m pip install -r scripts/requirements-interop.txt
       - run: python scripts/verify_vectors.py
+      - run: python scripts/verify_rank_vectors.py
       - run: python scripts/dht_smoke.py
       - run: python scripts/matching_smoke.py
+      - run: python scripts/ranking_smoke.py
